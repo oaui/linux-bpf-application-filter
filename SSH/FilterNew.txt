@@ -1,12 +1,11 @@
 
 ipset -N badSource hash:net family inet maxelem 999999999 timeout 60
 ipset -N banSet hash:net family inet maxelem 999999999
-
 iptables -t raw -A PREROUTING -p tcp --syn -m set --match-set banSet src -j DROP
 
 iptables -t mangle -A PREROUTING -m set --match-set badSource src -m conntrack --ctstate NEW -j SET --add-set banSet src
 
-iptables -t mangle -A PREROUTING -s WHITELIST_YOURSELF -j ACCEPT
+iptables -t mangle -A PREROUTING -s 82.22.23.82 -j ACCEPT
 iptables -t mangle -A PREROUTING -p icmp -j DROP
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
@@ -14,22 +13,23 @@ iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
 iptables -t mangle -N Heuristic
 iptables -t mangle -N BasicUFW
 
-
-iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Mark the first Syn Packet" -m connbytes --connbytes 1:1 --connbytes-mode packets --connbytes-dir original -j MARK --set-mark 0
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "SSH Validation" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 1
+iptables -t mangle -A PREROUTING -p tcp -m conntrack ! --ctstatus ASSURED -m connbytes --connbytes 6: --connbytes-mode packets --connbytes-dir both -j CONNMARK --set-mark 2
 
-iptables -t mangle -A PREROUTING -j Heuristic
+iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 22,25565 -j Heuristic
 
 iptables -A Heuristic -t mangle -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -m recent --name sshFilter --set 
 iptables -A Heuristic -t mangle -p tcp -m recent --hitcount 5 --rcheck --seconds 5 --name sshFilter --rttl -j SET --add-set badSource src
 iptables -A Heuristic -t mangle -p tcp -m recent --hitcount 5 --update --seconds 10 --name sshFilter --rttl -j DROP
-iptables -A Heuristic -t mangle -p tcp -m connlimit --connlimit-above 3 --connlimit-mask 24 -j SET --add-set badSource src
+iptables -A Heuristic -t mangle -p tcp -m conntrack --ctstate NEW -m connlimit --connlimit-above 2 --connlimit-mask 24 -j SET --add-set badSource src
 iptables -A Heuristic -t mangle -j BasicUFW
 
 iptables -t mangle -A BasicUFW -p tcp -m comment --comment "Restore Mark" -m conntrack --ctstate NEW,ESTABLISHED -j CONNMARK --restore-mark
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate ESTABLISHED -m connmark --mark 1 -j ACCEPT
+iptables -t mangle -A BasicUFW -p tcp -m connmark --mark 2 -j DROP
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate RELATED -j ACCEPT
-iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -m mark --mark 0 -m hashlimit --hashlimit-mode srcip --hashlimit-upto 5/s --hashlimit-burst 3 --hashlimit-htable-max 4294967295 --hashlimit-name AcceptHash --hashlimit-htable-size 999999999 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-htable-max 4294967295 --hashlimit-name rlhash --hashlimit-htable-size 999999999 --hashlimit-srcmask 24 -j DROP
+iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -j ACCEPT
 iptables -t mangle -A BasicUFW -j DROP
 
 iptables -P FORWARD DROP
