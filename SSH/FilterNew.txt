@@ -7,7 +7,7 @@ iptables -t raw -A PREROUTING -p tcp --syn -m set --match-set banSet src -j DROP
 iptables -t mangle -A PREROUTING -m set --match-set badSource src -m conntrack --ctstate NEW -j SET --add-set banSet src
 
 iptables -t mangle -A PREROUTING -s 82.22.23.82 -j ACCEPT
-iptables -t mangle -I PREROUTING -s 149.50.211.142 -j ACCEPT
+iptables -t mangle -I PREROUTING -p tcp --dport 22 -s 185.132.134.107 -j ACCEPT
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
 
@@ -47,10 +47,10 @@ iptables -A ApplicationLock -t mangle -j BasicUFW
 
 iptables -t mangle -A BasicUFW -p tcp -m comment --comment "Restore Mark" -m conntrack --ctstate NEW,ESTABLISHED -j CONNMARK --restore-mark
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate ESTABLISHED -m connmark --mark 1 -j ACCEPT
-iptables -t mangle -A BasicUFW -p tcp -m connmark --mark 2 -j DROP
+iptables -t mangle -A BasicUFW -p tcp -m connmark --mark 2 -j SET --add-set badSource src
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate RELATED -j ACCEPT
-iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-htable-max 4294967295 --hashlimit-name rlhash --hashlimit-htable-size 999999999 --hashlimit-srcmask 24 -j DROP
-iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -j ACCEPT
+iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip --hashlimit-above 60/m --hashlimit-burst 1 --hashlimit-htable-max 4294967295 --hashlimit-name rlhash --hashlimit-htable-size 999999999 --hashlimit-srcmask 24 -j DROP
+iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-name acceptHash --hashlimit-srcmask 32 -j ACCEPT
 iptables -t mangle -A BasicUFW -j DROP
 
 
