@@ -20,7 +20,7 @@ iptables -t mangle -N ApplicationLock
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "SSH Validation" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 1
 iptables -t mangle -A PREROUTING -p tcp -m conntrack ! --ctstatus ASSURED -m connbytes --connbytes 6: --connbytes-mode packets --connbytes-dir both -j CONNMARK --set-mark 2
 
-iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 22,25565 -j TcpHeuristic
+iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 22,12345 -j TcpHeuristic
 
 
 iptables -A TcpHeuristic -t mangle -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -m recent --name sshFilter --set 

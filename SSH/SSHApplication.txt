@@ -1,7 +1,7 @@
 
 ipset -N badSource hash:net family inet maxelem 999999999 timeout 60
 ipset -N banSet hash:net family inet maxelem 999999999
-ipset -N stPkt hash:net family inet maxelem 999999999 timeout 10
+ipset -N stPkt hash:net family inet maxelem 999999999 timeout 30
 
 iptables -t raw -A PREROUTING -p tcp -m set --match-set banSet src -j DROP
 
@@ -18,17 +18,14 @@ iptables -t mangle -N BasicUFW
 iptables -t mangle -N ApplicationLock
 iptables -t mangle -N SshLock
 
-iptables -t mangle -A PREROUTING -p tcp -m comment --comment "SSH Validation" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 1
-iptables -t mangle -A PREROUTING -p tcp -m conntrack ! --ctstatus ASSURED -m connbytes --connbytes 6: --connbytes-mode packets --connbytes-dir both -j CONNMARK --set-mark 2
 
-iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 22,25565 -j SshLock
+iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 22,12345 -j SshLock
 
 
-iptables -t mangle -A PREROUTING -p tcp --syn -m conntrack --ctstate NEW -j SET --add-set stPkt src  --exist
+iptables -t mangle -A SshLock -p tcp -m comment --comment "SSH Validation" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 1
+iptables -t mangle -A SshLock -p tcp --syn -m conntrack --ctstate NEW -m set --match-set stPkt src -j DROP
 iptables -t mangle -A SshLock -p tcp -m connbytes --connbytes 1:1 --connbytes-mode packets --connbytes-dir original -m set ! --match-set stPkt src -j SET --add-set stPkt src
-iptables -t mangle -A SshLock -p tcp -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 99
-iptables -t mangle -A SshLock -p tcp -m comment --comment "Restore Mark" -m conntrack --ctstate NEW,ESTABLISHED -j CONNMARK --restore-mark
-iptables -t mangle -A SshLock -p tcp -m conntrack --ctstate ESTABLISHED -m connmark --mark 99 -m set --match-set stPkt src -j SET --del-set stPkt src
+iptables -t mangle -A SshLock -p tcp -m conntrack --ctstate ESTABLISHED -m connmark --mark 1 -m set --match-set stPkt src -j SET --del-set stPkt src
 iptables -A SshLock -t mangle -j TcpHeuristic
 
 
@@ -38,7 +35,7 @@ iptables -A TcpHeuristic -t mangle -p tcp -m recent --hitcount 5 --update --seco
 iptables -A TcpHeuristic -t mangle -j ApplicationLock
 
 
-
+iptables -t mangle -A ApplicationLock -p tcp -m conntrack ! --ctstatus ASSURED -m connbytes --connbytes 6: --connbytes-mode packets --connbytes-dir both -j DROP
 iptables -t mangle -A ApplicationLock -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m string ! --hex-string "PuTTY" --algo bm -j MARK --set-mark 3
 iptables -A ApplicationLock -t mangle -p tcp -m conntrack --ctstate ESTABLISHED,NEW -m mark --mark 3 -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-srcmask 24 --hashlimit-mode srcip --hashlimit-name sshrate -j SET --add-set badSource src
 iptables -A ApplicationLock -t mangle -j BasicUFW
@@ -46,7 +43,6 @@ iptables -A ApplicationLock -t mangle -j BasicUFW
 
 iptables -t mangle -A BasicUFW -p tcp -m comment --comment "Restore Mark" -m conntrack --ctstate NEW,ESTABLISHED -j CONNMARK --restore-mark
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate ESTABLISHED -m connmark --mark 1 -j ACCEPT
-iptables -t mangle -A BasicUFW -p tcp -m connmark --mark 2 -j SET --add-set badSource src
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate RELATED -j ACCEPT
 iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-name acceptHash --hashlimit-srcmask 32 -j ACCEPT
 iptables -t mangle -A BasicUFW -j DROP
