@@ -32,6 +32,7 @@ iptables -A SshLock -t mangle -j TcpHeuristic
 iptables -A TcpHeuristic -t mangle -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -m recent --name sshFilter --set 
 iptables -A TcpHeuristic -t mangle -p tcp -m recent --hitcount 5 --rcheck --seconds 5 --name sshFilter --rttl -j SET --add-set badSource src
 iptables -A TcpHeuristic -t mangle -p tcp -m recent --hitcount 5 --update --seconds 10 --name sshFilter --rttl -j DROP
+iptables -A TcpHeuristic -t mangle -p tcp -m connlimit --connlimit-above 3 --connlimit-mask 24 -j DROP
 iptables -A TcpHeuristic -t mangle -j ApplicationLock
 
 
@@ -46,6 +47,11 @@ iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate ESTABLISHED -m conn
 iptables -t mangle -A BasicUFW -p tcp -m conntrack --ctstate RELATED -j ACCEPT
 iptables -t mangle -A BasicUFW -p tcp --syn -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-name acceptHash --hashlimit-srcmask 32 -j ACCEPT
 iptables -t mangle -A BasicUFW -j DROP
+
+
+## Logging, Command: sudo journalctl -k -o short-precise | grep "SSH Con Log" >> precLog.txt
+iptables -I INPUT -p tcp --dport 12345 -m conntrack --ctstate ESTABLISHED -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j LOG --log-prefix "SSH Con Log" --log-level 4
+
 
 
 iptables -P FORWARD DROP
